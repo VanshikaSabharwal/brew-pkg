@@ -131,9 +131,9 @@ jobs:
           fi
           rm -rf `pwd`/distributable
           export PATH="${INSTALL_DIR}/bin:$PATH"
-          otool -L ${INSTALL_DIR}/bin/python3
+          otool -L ${INSTALL_DIR}/bin/python3.12
           otool -L ${INSTALL_DIR}/bin/ruby
-          ${INSTALL_DIR}/bin/python3 -c 'import sys; print(sys.argv)'
+          ${INSTALL_DIR}/bin/python3.12 -c 'import sys; print(sys.argv)'
           ${INSTALL_DIR}/bin/ruby -e "require 'date'; puts Date.today"
 
   # TODO: Relocatable
@@ -172,9 +172,9 @@ jobs:
   #         export PATH="${INSTALL_DIR}/bin:$PATH"
   #         export RUBYLIB="${INSTALL_DIR}/lib/ruby/3.3.0:${INSTALL_DIR}/lib/ruby/3.3.0/${RUBY_PLATFORM_PAIR}"
   #         export GEM_PATH="${INSTALL_DIR}/lib/ruby/gems/3.3.0"
-  #         otool -L ${INSTALL_DIR}/bin/python3
+  #         otool -L ${INSTALL_DIR}/bin/python3.12
   #         otool -L ${INSTALL_DIR}/bin/ruby
-  #         ${INSTALL_DIR}/bin/python3 -c 'import sys; print(sys.argv)'
+  #         ${INSTALL_DIR}/bin/python3.12 -c 'import sys; print(sys.argv)'
   #         ${INSTALL_DIR}/bin/ruby -e "require 'date'; puts Date.today"
 
   pkg-test:
@@ -207,7 +207,7 @@ jobs:
           else
               INSTALL_DIR="/usr/local"
           fi
-          otool -L ${INSTALL_DIR}/bin/python3
+          otool -L ${INSTALL_DIR}/bin/python3.12
           otool -L ${INSTALL_DIR}/bin/ruby
-          ${INSTALL_DIR}/bin/python3 -c 'import sys; print(sys.argv)'
+          ${INSTALL_DIR}/bin/python3.12 -c 'import sys; print(sys.argv)'
           ${INSTALL_DIR}/bin/ruby -e "require 'date'; puts Date.today"
