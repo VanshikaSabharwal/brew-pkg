@@ -28,8 +28,8 @@ module Homebrew extend self
     stdout, status = Open3.capture2("otool -L #{binary_path}")
 
     # Debug information
-    ohai "Before patching:"
-    ohai "#{stdout}"
+    puts "Before patching:"
+    puts "#{stdout}"
 
     # Remove the first line which is unnecesary
     stdout_lines = stdout.lines[1..-1]
@@ -55,7 +55,7 @@ module Homebrew extend self
         new_lib = File.join('@loader_path', relative_path)
 
         # Patch the library path name
-        ohai "install_name_tool -id #{new_lib} #{binary_path}"
+        puts "install_name_tool -id #{new_lib} #{binary_path}"
         system("install_name_tool", "-id", new_lib, binary_path)
       else
         # Obtain the relative path from the executable or library
@@ -65,18 +65,18 @@ module Homebrew extend self
         new_lib = File.join(format, relative_path)
 
         # Patch the library path relative to the binary path
-        ohai "install_name_tool -change #{lib} #{new_lib} #{binary_path}"
+        puts "install_name_tool -change #{lib} #{new_lib} #{binary_path}"
         system("install_name_tool", "-change", lib, new_lib, binary_path)
       end
 
       # Debug information
       stdout, status = Open3.capture2("otool -L #{binary_path}")
-      ohai "After patching:"
-      ohai "#{stdout}"
+      puts "After patching:"
+      puts "#{stdout}"
 
       if lib_path != binary_path
         # Recursively iterate through libraries
-        ohai "patchelf(#{root_dir}, #{prefix_path}, #{lib.delete_prefix(prefix_path)})"
+        puts "patchelf(#{root_dir}, #{prefix_path}, #{lib.delete_prefix(prefix_path)})"
         patchelf(root_dir, prefix_path, lib.delete_prefix(prefix_path), '@loader_path')
       end
     end
@@ -139,7 +139,7 @@ the conventions of OS X installer packages.
       opts.on('-w', '--ownership ownership_mode', 'Define the ownership as: recommended, preserve or preserve-other') do |o|
         if ownership_options.include?(o)
           options[:ownership] = value
-          ohai "Setting pkgbuild option --ownership with value #{value}"
+          puts "Setting pkgbuild option --ownership with value #{value}"
         else
           opoo "#{value} is not a valid value for pkgbuild --ownership option, ignoring"
         end
@@ -162,7 +162,7 @@ the conventions of OS X installer packages.
 
     # ARGV now contains the free arguments after parsing the options
     packages = [ARGV.first] + options[:additional_deps]
-    ohai "Building packages: #{packages.join(', ')}"
+    puts "Building packages: #{packages.join(', ')}"
 
     # Define the formula
     dependencies = []
@@ -209,7 +209,7 @@ the conventions of OS X installer packages.
     end
 
     staging_root = options[:output_dir] + HOMEBREW_PREFIX
-    ohai "Creating package staging root using Homebrew prefix #{HOMEBREW_PREFIX} inside #{staging_root}"
+    puts "Creating package staging root using Homebrew prefix #{HOMEBREW_PREFIX} inside #{staging_root}"
     FileUtils.mkdir_p staging_root
 
     formulas.each do |pkg|
@@ -218,7 +218,7 @@ the conventions of OS X installer packages.
       dep_version = formula.version.to_s
       dep_version += "_#{formula.revision}" if formula.revision.to_s != '0'
 
-      ohai "Staging formula #{formula.name}"
+      puts "Staging formula #{formula.name}"
 
       # Get all directories for this keg, rsync to the staging root
       if File.exist?(File.join(HOMEBREW_CELLAR, formula.name, dep_version))
@@ -227,7 +227,7 @@ the conventions of OS X installer packages.
         dirs.each { |d| safe_system "rsync", "-a", "#{d}", "#{staging_root}/" }
 
         if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
-          ohai "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
+          puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
           safe_system "mkdir", "-p", "#{staging_root}/Cellar/#{formula.name}/"
           safe_system "rsync", "-a", "#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}", "#{staging_root}/Cellar/#{formula.name}/"
           safe_system "mkdir", "-p", "#{staging_root}/opt"
@@ -237,7 +237,7 @@ the conventions of OS X installer packages.
 
       # Write out a LaunchDaemon plist if we have one
       if formula.service?
-        ohai "Plist found at #{formula.plist_name}, staging for /Library/LaunchDaemons/#{formula.plist_name}.plist"
+        puts "Plist found at #{formula.plist_name}, staging for /Library/LaunchDaemons/#{formula.plist_name}.plist"
         launch_daemon_dir = File.join staging_root, "Library", "LaunchDaemons"
         FileUtils.mkdir_p launch_daemon_dir
         fd = File.new(File.join(launch_daemon_dir, "#{formula.plist_name}.plist"), "w")
@@ -255,7 +255,7 @@ the conventions of OS X installer packages.
     # Zip it
     if options[:compress]
       tgzfile = "#{options[:package_name]}.tar.gz"
-      ohai "Compressing package #{tgzfile}"
+      puts "Compressing package #{tgzfile}"
       args = [ "-czf", tgzfile, "-C", options[:output_dir], "." ]
       safe_system "tar", *args
     end
@@ -269,12 +269,12 @@ the conventions of OS X installer packages.
         if File.exist?(pre)
           File.chmod(0755, pre)
           found_scripts = true
-          ohai "Adding preinstall script"
+          puts "Adding preinstall script"
         end
         if File.exist?(post)
           File.chmod(0755, post)
           found_scripts = true
-          ohai "Adding postinstall script"
+          puts "Adding postinstall script"
         end
       end
       if not found_scripts
@@ -284,7 +284,7 @@ the conventions of OS X installer packages.
 
     # Build it
     pkgfile = "#{options[:package_name]}.pkg"
-    ohai "Building package #{pkgfile}"
+    puts "Building package #{pkgfile}"
     args = [
       "--quiet",
       "--root", "#{options[:output_dir]}",
