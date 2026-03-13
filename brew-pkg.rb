@@ -220,16 +220,24 @@ the conventions of OS X installer packages.
 
       puts "Staging formula #{formula.name}"
 
+      keg_path = File.join(HOMEBREW_CELLAR, formula.name, dep_version)    
+
       # Get all directories for this keg, rsync to the staging root
-      if File.exist?(File.join(HOMEBREW_CELLAR, formula.name, dep_version))
-        dirs = Pathname.new(File.join(HOMEBREW_CELLAR, formula.name, dep_version)).children.select { |c| c.directory? }.collect { |p| p.to_s }
+      if File.exist?(keg_path)
+        %w[lib bin include share].each do |dir|children.select { |c| c.directory? }.collect { |p| p.to_s }
+          src = File.join(HOMEBREW_PREFIX, dir)
+          next unless File.exist?(src)
 
-        dirs.each { |d| safe_system "rsync", "-a", "#{d}", "#{staging_root}/" }
+          keg_dir = File.join(keg_path, dir)
+          next unless File.exist?(keg_dir)
 
-        if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
-          puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
+          safe_system "rsync", "-a", "--files-from=<(cd #{keg_dir} && find . -maxdepth 5 -type f -o -type l)", keg_dir, "#{staging_root}/#{dir}/"
+        end
+
+        if !options[:without_kegs]
+          puts "Staging directory #{keg_path}"
           safe_system "mkdir", "-p", "#{staging_root}/Cellar/#{formula.name}/"
-          safe_system "rsync", "-a", "#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}", "#{staging_root}/Cellar/#{formula.name}/"
+          safe_system "rsync", "-a", "#{keg_path}", "#{staging_root}/Cellar/#{formula.name}/"
           safe_system "mkdir", "-p", "#{staging_root}/opt"
           safe_system "ln", "-s", "../Cellar/#{formula.name}/#{dep_version}", "#{staging_root}/opt/#{formula.name}"
         end
