@@ -232,11 +232,17 @@ the conventions of OS X installer packages.
 
         dirs.each { |d| safe_system "rsync", "-a", "#{d}", "#{staging_root}/" }
         puts "DEBUG: contents after rsync"
+        puts "DEBUG: staging_root"
         system("ls -la #{staging_root}")
+        puts "DEBUG: staging_root/bin"
         system("ls -la #{staging_root}/bin")
+        puts "DEBUG: staging_root/lib"
         system("ls -la #{staging_root}/lib")
+        puts "DEBUG: staging_root/Cellar"
         system("ls -la #{staging_root}/Cellar")
+        puts "DEBUG: staging_root/Cellar/formula.name"
         system("ls -la #{staging_root}/Cellar/#{formula.name}")
+        puts "DEBUG: staging_root/Cellar/formula.name/dep_version"
         system("ls -la #{staging_root}/Cellar/#{formula.name}/#{dep_version}")
 
         if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
