@@ -212,6 +212,12 @@ the conventions of OS X installer packages.
     puts "Creating package staging root using Homebrew prefix #{HOMEBREW_PREFIX} inside #{staging_root}"
     FileUtils.mkdir_p staging_root
 
+    puts "Listing staging root:"
+    system("ls -la #{staging_root}")
+
+    puts "Listing lib folder:"
+    system("ls -la #{staging_root}/lib")
+
     formulas.each do |pkg|
       formula = Formulary.factory(pkg.to_s)
 
