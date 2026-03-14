@@ -7,58 +7,75 @@ require 'pathname'
 
 module Homebrew extend self
   def elf_file?(file_path)
+    # Check if the file exists
     return false unless File.exist?(file_path)
+
     stdout, status = Open3.capture2("file -bL --mime-encoding \"#{file_path}\"")
+
     return stdout.strip == 'binary'
   end
 
   def patchelf(root_dir, prefix_path, binary, format='@executable_path')
     full_prefix_path = File.join(root_dir, prefix_path)
 
-    # Use expand_path instead of realpath to avoid resolving symlinks to Cellar
-    binary_path = File.expand_path(File.join(full_prefix_path, binary))
+    # Get the full binary path and check if it's a valid ELF
+    binary_path = File.realpath(File.join(full_prefix_path, binary))
 
+    # Check if file exists and it is an executable
     return unless elf_file?(binary_path)
 
+    # Get the list of linked libraries with otool
     stdout, status = Open3.capture2("otool -L #{binary_path}")
 
+    # Debug information
     puts "Before patching:"
     puts "#{stdout}"
 
+    # Remove the first line which is unnecesary
     stdout_lines = stdout.lines[1..-1]
 
+    # Get all the paths from the prefix path and strip left and remove the right data inside the parenthesis
     lib_paths = stdout_lines.grep(/#{prefix_path}/).map(&:lstrip).map { |path| path.sub(/ \(.*$/m, '') }
 
+    # Iterate through all libraries that the binary is linked to
     lib_paths.each do |lib|
-      # Use expand_path instead of realpath to avoid resolving symlinks to Cellar
-      lib_path = (File.expand_path(File.join(root_dir, lib)) rescue nil)
+      lib_path = (File.realpath(File.join(root_dir, lib)) rescue nil)
 
       if lib_path == nil
-        opoo "File 'File.expand_path(File.join(#{root_dir}, #{lib})' not found"
+        opoo "File 'File.realpath(File.join(#{root_dir}, #{lib})' not found"
         next
       end
 
+      # Define new library relative path
       if lib_path == binary_path
+        # When it is referring to itself, it means that it is the id of the name path,
+        # obtain the relative path from binary folder (it is the same as the lib folder,
+        # so we can use @loader_path for covering the executable and library paths)
         relative_path = Pathname.new(lib).relative_path_from(Pathname.new(File.join(prefix_path, 'bin')))
         new_lib = File.join('@loader_path', relative_path)
 
+        # Patch the library path name
         puts "install_name_tool -id #{new_lib} #{binary_path}"
         system("install_name_tool", "-id", new_lib, binary_path)
       else
+        # Obtain the relative path from the executable or library
         lib_relative_path = lib_path.delete_prefix(full_prefix_path)
         binary_relative_path = File.dirname(binary_path).delete_prefix(full_prefix_path)
         relative_path = Pathname.new(lib_relative_path).relative_path_from(Pathname.new(binary_relative_path))
         new_lib = File.join(format, relative_path)
 
+        # Patch the library path relative to the binary path
         puts "install_name_tool -change #{lib} #{new_lib} #{binary_path}"
         system("install_name_tool", "-change", lib, new_lib, binary_path)
       end
 
+      # Debug information
       stdout, status = Open3.capture2("otool -L #{binary_path}")
       puts "After patching:"
       puts "#{stdout}"
 
       if lib_path != binary_path
+        # Recursively iterate through libraries
         puts "patchelf(#{root_dir}, #{prefix_path}, #{lib.delete_prefix(prefix_path)})"
         patchelf(root_dir, prefix_path, lib.delete_prefix(prefix_path), '@loader_path')
       end
@@ -121,10 +138,10 @@ the conventions of OS X installer packages.
       ownership_options = ['recommended', 'preserve', 'preserve-other']
       opts.on('-w', '--ownership ownership_mode', 'Define the ownership as: recommended, preserve or preserve-other') do |o|
         if ownership_options.include?(o)
-          options[:ownership] = o  # fixed: was `value`, should be `o`
-          puts "Setting pkgbuild option --ownership with value #{o}"
+          options[:ownership] = value
+          puts "Setting pkgbuild option --ownership with value #{value}"
         else
-          opoo "#{o} is not a valid value for pkgbuild --ownership option, ignoring"
+          opoo "#{value} is not a valid value for pkgbuild --ownership option, ignoring"
         end
       end
 
@@ -137,39 +154,56 @@ the conventions of OS X installer packages.
       end
     end
 
+    # Parse the command line arguments
     option_parser.parse!(ARGV)
 
+    # Exit if there's no formula or there's more than one
     abort option_parser.banner if ARGV.length != 1
 
+    # ARGV now contains the free arguments after parsing the options
     packages = [ARGV.first] + options[:additional_deps]
     puts "Building packages: #{packages.join(', ')}"
 
+    # Define the formula
     dependencies = []
     formulas = packages.map do |formula|
       f = Formulary.factory(formula)
 
+      # Make sure it's installed first
       if !f.any_version_installed?
         onoe "#{f.name} is not installed. First install it with 'brew install #{f.name}'."
         abort
       end
 
+      # Add deps if we specified --with-deps
       dependencies += f.recursive_dependencies if options[:with_deps]
+
+      # TODO: Implement proper filtering
+      # if options[:with_deps]
+      #   dependencies += f.recursive_dependencies.reject do |dep|
+      #     dep.build? || dep.test?
+      #   end
+      # end
 
       f
     end
 
+    # Add the dependencies to the rest of formulas if any
     formulas += dependencies
 
+    # Define the first package which is the main one
     f = formulas.first
     name = f.name
     identifier = options[:identifier_prefix] + ".#{name}"
     version = f.version.to_s
     version += "_#{f.revision}" if f.revision.to_s != '0'
 
+    # If the package name is not defined, define the default one
     if options[:package_name] == ''
       options[:package_name] = "#{name}-#{version}"
     end
 
+    # Setup staging dir
     if options[:output_dir] == ''
       options[:output_dir] = Dir.mktmpdir('brew-pkg')
     end
@@ -186,31 +220,22 @@ the conventions of OS X installer packages.
 
       puts "Staging formula #{formula.name}"
 
-      keg_path = File.join(HOMEBREW_CELLAR, formula.name, dep_version)
+      # Get all directories for this keg, rsync to the staging root
+      if File.exist?(File.join(HOMEBREW_CELLAR, formula.name, dep_version))
+        dirs = Pathname.new(File.join(HOMEBREW_CELLAR, formula.name, dep_version)).children.select { |c| c.directory? }.collect { |p| p.to_s }
 
-      if File.exist?(keg_path)
-        # Copy from stable prefix paths instead of directly from Cellar
-        # This avoids baking version-specific Cellar paths into the package
-        %w[lib bin include share Frameworks].each do |dir|
-          src = File.join(HOMEBREW_PREFIX, dir)
-          next unless File.exist?(src)
+        dirs.each { |d| safe_system "rsync", "-a", "#{d}", "#{staging_root}/" }
 
-          keg_dir = File.join(keg_path, dir)
-          next unless File.exist?(keg_dir)
-
-          FileUtils.mkdir_p "#{staging_root}/#{dir}"
-          safe_system "rsync", "-a", "#{keg_dir}/", "#{staging_root}/#{dir}/"
-        end
-
-        if !options[:without_kegs]
-          puts "Staging directory #{keg_path}"
+        if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
+          puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
           safe_system "mkdir", "-p", "#{staging_root}/Cellar/#{formula.name}/"
-          safe_system "rsync", "-a", "#{keg_path}", "#{staging_root}/Cellar/#{formula.name}/"
+          safe_system "rsync", "-a", "#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}", "#{staging_root}/Cellar/#{formula.name}/"
           safe_system "mkdir", "-p", "#{staging_root}/opt"
           safe_system "ln", "-s", "../Cellar/#{formula.name}/#{dep_version}", "#{staging_root}/opt/#{formula.name}"
         end
       end
 
+      # Write out a LaunchDaemon plist if we have one
       if formula.service?
         puts "Plist found at #{formula.plist_name}, staging for /Library/LaunchDaemons/#{formula.plist_name}.plist"
         launch_daemon_dir = File.join staging_root, "Library", "LaunchDaemons"
@@ -221,11 +246,13 @@ the conventions of OS X installer packages.
       end
     end
 
+    # Patchelf
     if options[:relocatable]
       files = Dir.entries(File.join(staging_root, 'bin')).reject { |e| e == '.' || e == '..' }
       files.each { |file| patchelf(options[:output_dir], "#{HOMEBREW_PREFIX}/", File.join('bin', file)) }
     end
 
+    # Zip it
     if options[:compress]
       tgzfile = "#{options[:package_name]}.tar.gz"
       puts "Compressing package #{tgzfile}"
@@ -233,6 +260,7 @@ the conventions of OS X installer packages.
       safe_system "tar", *args
     end
 
+    # Add scripts if we specified --scripts
     found_scripts = false
     if options[:scripts_path] != ''
       if File.directory?(options[:scripts_path])
@@ -254,6 +282,7 @@ the conventions of OS X installer packages.
       end
     end
 
+    # Build it
     pkgfile = "#{options[:package_name]}.pkg"
     puts "Building package #{pkgfile}"
     args = [
