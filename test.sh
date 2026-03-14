@@ -11,6 +11,11 @@ fi
 brew tap --verbose metacall/brew-pkg
 brew install --verbose --HEAD metacall/brew-pkg/brew-pkg
 
+# overwrite installed brew-pkg with your local debug version
+BREWPKG_PATH=$(brew --prefix)/Cellar/brew-pkg/*/bin/brew-pkg.rb
+echo "Overwriting brew-pkg script at: $BREWPKG_PATH"
+cp brew-pkg.rb $BREWPKG_PATH
+
 # Test Python with dependencies, compress and custom output tarball name
 brew install python@3.12
 brew pkg --name python --with-deps --compress python@3.12
