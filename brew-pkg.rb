@@ -236,6 +236,8 @@ the conventions of OS X installer packages.
         system("ls -la #{staging_root}/bin")
         system("ls -la #{staging_root}/lib")
         system("ls -la #{staging_root}/Cellar")
+        system("ls -la #{staging_root}/Cellar/#{formula.name}")
+        system("ls -la #{staging_root}/Cellar/#{formula.name}/#{dep_version}")
 
         if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
           puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
