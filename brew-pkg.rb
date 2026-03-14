@@ -231,6 +231,11 @@ the conventions of OS X installer packages.
         dirs = Pathname.new(File.join(HOMEBREW_CELLAR, formula.name, dep_version)).children.select { |c| c.directory? }.collect { |p| p.to_s }
 
         dirs.each { |d| safe_system "rsync", "-a", "#{d}", "#{staging_root}/" }
+        puts "DEBUG: contents after rsync"
+        system("ls -la #{staging_root}")
+        system("ls -la #{staging_root}/bin")
+        system("ls -la #{staging_root}/lib")
+        system("ls -la #{staging_root}/Cellar")
 
         if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
           puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
