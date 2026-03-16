@@ -138,10 +138,10 @@ the conventions of OS X installer packages.
       ownership_options = ['recommended', 'preserve', 'preserve-other']
       opts.on('-w', '--ownership ownership_mode', 'Define the ownership as: recommended, preserve or preserve-other') do |o|
         if ownership_options.include?(o)
-          options[:ownership] = value
-          puts "Setting pkgbuild option --ownership with value #{value}"
+          options[:ownership] = o
+          puts "Setting pkgbuild option --ownership with value #{o}"
         else
-          opoo "#{value} is not a valid value for pkgbuild --ownership option, ignoring"
+          opoo "#{o} is not a valid value for pkgbuild --ownership option, ignoring"
         end
       end
 
@@ -245,7 +245,37 @@ the conventions of OS X installer packages.
         puts "DEBUG: staging_root/Cellar/formula.name/dep_version"
         system("ls -la #{staging_root}/Cellar/#{formula.name}/#{dep_version}")
 
-        if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_deps]
+        # Recreate Homebrew symlinks from Cellar into staging root,
+        # mirroring what 'brew link' does on a live system
+        cellar_path = File.join(staging_root, 'Cellar', formula.name, dep_version)
+
+        ['bin', 'lib', 'include', 'share', 'etc', 'sbin'].each do |dir|
+          source_dir = File.join(cellar_path, dir)
+          next unless File.directory?(source_dir)
+
+          target_dir = File.join(staging_root, dir)
+          FileUtils.mkdir_p(target_dir)
+
+          Dir.glob(File.join(source_dir, '**', '*'), File::FNM_DOTMATCH).each do |source|
+            next if File.basename(source) == '.' || File.basename(source) == '..'
+
+            relative = Pathname.new(source).relative_path_from(Pathname.new(cellar_path))
+            target = File.join(staging_root, relative)
+
+            if File.directory?(source) && !File.symlink?(source)
+              FileUtils.mkdir_p(target)
+            else
+              target_dir_path = File.dirname(target)
+              FileUtils.mkdir_p(target_dir_path)
+
+              # Create relative symlink pointing back into the Cellar
+              cellar_rel = Pathname.new(source).relative_path_from(Pathname.new(target_dir_path))
+              FileUtils.ln_sf(cellar_rel, target) unless File.exist?(target)
+            end
+          end
+        end
+
+        if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_kegs]
           puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
           safe_system "mkdir", "-p", "#{staging_root}/Cellar/#{formula.name}/"
           safe_system "rsync", "-a", "#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}", "#{staging_root}/Cellar/#{formula.name}/"
@@ -267,12 +297,8 @@ the conventions of OS X installer packages.
 
     # Patchelf
     if options[:relocatable]
-      Dir.glob("#{staging_root}/**/*").each do |file|
-        next unless File.file?(file)
-
-        relative = file.delete_prefix(options[:output_dir])
-        patchelf(options[:output_dir], "#{HOMEBREW_PREFIX}/", relative)
-      end
+      files = Dir.entries(File.join(staging_root, 'bin')).reject { |e| e == '.' || e == '..' }
+      files.each { |file| patchelf(options[:output_dir], "#{HOMEBREW_PREFIX}/", File.join('bin', file)) }
     end
 
     # Zip it
