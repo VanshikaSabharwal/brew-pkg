@@ -245,8 +245,7 @@ the conventions of OS X installer packages.
         puts "DEBUG: staging_root/Cellar/formula.name/dep_version"
         system("ls -la #{staging_root}/Cellar/#{formula.name}/#{dep_version}")
 
-        # Recreate Homebrew symlinks from Cellar into staging root,
-        # mirroring what 'brew link' does on a live system
+        # Recreate Homebrew symlinks from Cellar into staging root, mirroring what 'brew link' does on a live system
         cellar_path = File.join(staging_root, 'Cellar', formula.name, dep_version)
 
         ['bin', 'lib', 'include', 'share', 'etc', 'sbin'].each do |dir|
