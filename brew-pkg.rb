@@ -256,6 +256,8 @@ the conventions of OS X installer packages.
           target_dir = File.join(staging_root, dir)
           FileUtils.mkdir_p(target_dir)
 
+          puts "DEBUG: Creating symlinks for #{dir} from #{source_dir} -> #{target_dir}"
+
           Dir.glob(File.join(source_dir, '**', '*'), File::FNM_DOTMATCH).each do |source|
             next if File.basename(source) == '.' || File.basename(source) == '..'
 
@@ -264,16 +266,30 @@ the conventions of OS X installer packages.
 
             if File.directory?(source) && !File.symlink?(source)
               FileUtils.mkdir_p(target)
+              puts "DEBUG: Created directory #{target}"
             else
               target_dir_path = File.dirname(target)
               FileUtils.mkdir_p(target_dir_path)
 
               # Create relative symlink pointing back into the Cellar
               cellar_rel = Pathname.new(source).relative_path_from(Pathname.new(target_dir_path))
-              FileUtils.ln_sf(cellar_rel, target) unless File.exist?(target)
+
+              if File.exist?(target)
+                puts "DEBUG: Skipping #{target}, already exists"
+              else
+                FileUtils.ln_sf(cellar_rel, target)
+                if File.symlink?(target)
+                  puts "DEBUG: Symlink OK: #{target} -> #{File.readlink(target)}"
+                else
+                  puts "WARN: Failed to create symlink at #{target}"
+                end
+              end
             end
-          end
-        end
+          end # closes Dir.glob each
+
+          puts "DEBUG: Listing #{target_dir} after symlinking:"
+          system("ls -la #{target_dir}")
+        end # closes ['bin', 'lib', ...].each
 
         if File.exist?("#{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}") && !options[:without_kegs]
           puts "Staging directory #{HOMEBREW_CELLAR}/#{formula.name}/#{dep_version}"
@@ -282,7 +298,7 @@ the conventions of OS X installer packages.
           safe_system "mkdir", "-p", "#{staging_root}/opt"
           safe_system "ln", "-s", "../Cellar/#{formula.name}/#{dep_version}", "#{staging_root}/opt/#{formula.name}"
         end
-      end
+      end # closes if File.exist?(HOMEBREW_CELLAR...)
 
       # Write out a LaunchDaemon plist if we have one
       if formula.service?
@@ -293,7 +309,7 @@ the conventions of OS X installer packages.
         fd.write formula.service.to_plist
         fd.close
       end
-    end
+    end # closes formulas.each
 
     # Patchelf
     if options[:relocatable]
