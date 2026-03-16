@@ -21,21 +21,15 @@ brew install python@3.12
 brew pkg --name python --with-deps --compress python@3.12
 test -f python.tar.gz
 test -f python.pkg
-echo "=== Contents of python.tar.gz ==="
-tar -ztvf python.tar.gz
 
 brew pkg --name python-without-deps --compress python@3.12
 test -f python-without-deps.tar.gz
 test -f python-without-deps.pkg
-echo "=== Contents of python-without-deps.tar.gz ==="
-tar -ztvf python-without-deps.tar.gz
 
 brew install ruby@3.3
 brew pkg --name ruby-with-python --compress --relocatable --additional-deps python@3.12 ruby@3.3
 test -f ruby-with-python.tar.gz
 test -f ruby-with-python.pkg
-echo "=== Contents of ruby-with-python.tar.gz ==="
-tar -ztvf ruby-with-python.tar.gz
 
 # Debug files and sizes
 echo "=== Final package sizes ==="
